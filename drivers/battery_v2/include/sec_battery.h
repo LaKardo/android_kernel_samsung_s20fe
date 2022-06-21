@@ -718,6 +718,7 @@ struct sec_battery_info {
 	unsigned int slate_mode;
 	int batt_full_capacity;
 	bool usb_slow_chg;
+	int battery_charging_enabled;
 };
 
 /* event check */
