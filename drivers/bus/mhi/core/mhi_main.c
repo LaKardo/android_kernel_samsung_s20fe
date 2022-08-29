@@ -113,7 +113,7 @@ static void mhi_reg_write_enqueue(struct mhi_controller *mhi_cntrl,
 
 	q_index = q_index & (REG_WRITE_QUEUE_LEN - 1);
 
-	MHI_ASSERT(mhi_cntrl->reg_write_q[q_index].valid, "queue full idx %d",
+	MHI_ASSERT(mhi_cntrl->reg_write_q[q_index].valid, "queue full idx",
 			q_index);
 
 	mhi_cntrl->reg_write_q[q_index].reg_addr = reg_addr;
@@ -1419,9 +1419,6 @@ int mhi_process_tsync_ev_ring(struct mhi_controller *mhi_cntrl,
 	mutex_lock(&mhi_cntrl->tsync_mutex);
 
 	if (unlikely(mhi_tsync->int_sequence != sequence)) {
-		MHI_ASSERT(1, "Unexpected response:0x%llx Expected:0x%llx\n",
-			   sequence, mhi_tsync->int_sequence);
-
 		mhi_device_put(mhi_cntrl->mhi_dev,
 			       MHI_VOTE_DEVICE | MHI_VOTE_BUS);
 
@@ -1484,7 +1481,6 @@ int mhi_process_bw_scale_ev_ring(struct mhi_controller *mhi_cntrl,
 
 	if ((void*)dev_rp < ev_ring->base ||
 			(void*)dev_rp >= (ev_ring->base + ev_ring->len)) {
-		MHI_ERR("dev_rp out of bound 0x%llx\n", dev_rp);
 		panic("dev rp out of bound");
 	}
 
