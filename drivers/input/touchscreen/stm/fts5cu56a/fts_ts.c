@@ -2280,11 +2280,19 @@ static irqreturn_t fts_interrupt_handler(int irq, void *handle)
 		/* run lpm interrupt handler */
 	}
 
+	/* prevent CPU from entering deep sleep */
+	pm_qos_update_request(&info->pm_touch_req, 100);
+	pm_qos_update_request(&info->pm_i2c_req, 100);
+	pm_wakeup_event(&info->client->dev, MSEC_PER_SEC);
+
 	mutex_lock(&info->eventlock);
 
 	ret = fts_event_handler_type_b(info);
 
 	mutex_unlock(&info->eventlock);
+
+	pm_qos_update_request(&info->pm_i2c_req, PM_QOS_DEFAULT_VALUE);
+	pm_qos_update_request(&info->pm_touch_req, PM_QOS_DEFAULT_VALUE);
 
 	return IRQ_HANDLED;
 }
@@ -3095,6 +3103,17 @@ static int fts_probe(struct i2c_client *client, const struct i2c_device_id *idp)
 		info->finger[i].mcount = 0;
 	}
 
+	info->pm_i2c_req.type = PM_QOS_REQ_AFFINE_IRQ;
+	info->pm_i2c_req.irq = geni_i2c_get_adap_irq(client);
+	irq_set_perf_affinity(info->pm_i2c_req.irq, IRQF_PERF_AFFINE);
+	pm_qos_add_request(&info->pm_i2c_req, PM_QOS_CPU_DMA_LATENCY,
+		PM_QOS_DEFAULT_VALUE);
+
+	info->pm_touch_req.type = PM_QOS_REQ_AFFINE_IRQ;
+	info->pm_touch_req.irq = client->irq;
+	pm_qos_add_request(&info->pm_touch_req, PM_QOS_CPU_DMA_LATENCY,
+		PM_QOS_DEFAULT_VALUE);
+
 	retval = fts_irq_enable(info, true);
 	if (retval < 0) {
 		input_err(true, &info->client->dev,
@@ -3223,6 +3242,9 @@ err_sec_cmd:
 	if (info->irq_enabled)
 		fts_irq_enable(info, false);
 err_enable_irq:
+	pm_qos_remove_request(&info->pm_touch_req);
+	pm_qos_remove_request(&info->pm_i2c_req);
+
 	if (info->board->support_ear_detect) {
 		input_unregister_device(info->input_dev_proximity);
 		info->input_dev_proximity = NULL;
@@ -3290,6 +3312,9 @@ static int fts_remove(struct i2c_client *client)
 
 	disable_irq_nosync(info->client->irq);
 	free_irq(info->client->irq, info);
+
+	pm_qos_remove_request(&info->pm_touch_req);
+	pm_qos_remove_request(&info->pm_i2c_req);
 
 #ifdef CONFIG_TOUCHSCREEN_DUAL_FOLDABLE
 	cancel_delayed_work_sync(&info->switching_work);
